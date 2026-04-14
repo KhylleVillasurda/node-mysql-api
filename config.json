@@ -1,0 +1,19 @@
+{
+    "database": {
+        "host": "localhost",
+        "port": "3306",
+        "user": "root",
+        "password": "password-here",
+        "database": "node_mysql_api"
+    },
+    "secret": "secret_key" ,
+    "emailFrom": "freakyEtherealVader@ethereal.com" ,
+    "smtpOptions": {
+        "host": "smpt.ethereal.email",
+        "port": 587,
+        "auth": {
+            "user": "username-of-ethereal",
+            "pass": "pass-of-ethereal"
+        }
+    }
+}

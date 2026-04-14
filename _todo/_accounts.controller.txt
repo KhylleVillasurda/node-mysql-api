@@ -1,0 +1,46 @@
+
+import express from 'express';
+const router = express. Router();
+import Joi from 'joi';
+import validateRequest from '../_middleware/validate-request'; import authorize from '../_middleware/authorize';
+import Role from '../_helpers/role';
+import accountService from './account.service';
+router.post('/authenticate', authenticateSchema, authenticate);
+router.post('/refresh-token', refreshToken);
+router.post('/revoke-token', authorize(), revokeTokenSchema, revokeToken);
+router.post('/register', registerSchema, register);
+router.post('/verify-email', verifyEmailSchema, verifyEmail);
+router.post('/forgot-password', forgotPasswordSchema, forgot Password);
+router.post('/validate-reset-token', validateReset TokenSchema, validateResetToken);
+router.post('/reset-password', reset PasswordSchema, resetPassword);
+router.get('/', authorize (Role.Admin), getAll);
+router.get('/:id', authorize(), getById);
+router.post('/', authorize (Role. Admin), createSchema, create); router.put('/:id', authorize(), updateSchema, update); router.delete('/:id', authorize(), _delete);
+export default router;
+function authenticateSchema(req: any, res: any, next: any) { const schema = Joi.object({
+});
+email: Joi.string().required(),
+password: Joi.string().required()
+validateRequest(req, next, schema);
+}
+
+function authenticate(req: any, res: any, next: any) { const email, password } = req.body;
+const ipAddress = req.ip;
+accountService.authenticate({ email, password, ipAddress }) .then(({ refreshToken, ...account }: any) => {
+})
+}
+setTokenCookie(res, refreshToken);
+res.json(account);
+.catch(next);
+function refreshToken(req: any, res: any, next: any) { const token = req.cookies.refreshToken;
+const ipAddress = req.ip;
+accountService.refreshToken({ token, ipAddress }) .then(({refreshToken, ...account }: any) => { setTokenCookie(res, refreshToken);
+})
+}
+res.json(account);
+.catch(next);
+function revokeTokenSchema(req: any, res: any, next: any) { const schema = Joi.object({
+});
+}
+token: Joi.string().empty('')
+validateRequest(req, next, schema);
