@@ -1,0 +1,20 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 3306,
+    "user": "root",
+    "password": "Villasurda_2004",
+    "database": "node_boilerplate_api"
+  },
+  "jwtSecret": "change-this-in-production-123!",
+  "smtp": {
+    "host": "smtp.ethereal.email",
+    "port": 587,
+    "secure": false,
+    "auth": {
+      "user": "oran.windler@ethereal.email",
+      "pass": "Zu1fTPzMrYbpPuGD5P"
+    }
+  },
+  "emailFrom": "noreply@example.com"
+}
