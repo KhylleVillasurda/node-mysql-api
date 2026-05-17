@@ -38,13 +38,13 @@ async function sendViaGmail({
 
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 465,
-    secure: true, // TLS on port 465 — more reliable than STARTTLS 587
+    port: 587,
+    secure: false, // Use STARTTLS on port 587
     auth: {
       user,
       pass: appPassword,
     },
-    connectionTimeout: 10_000, // fail fast instead of hanging forever
+    connectionTimeout: 10_000,
     greetingTimeout: 10_000,
     socketTimeout: 15_000,
   });
