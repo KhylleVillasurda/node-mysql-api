@@ -13,16 +13,16 @@ import accountsController from "./accounts/accounts.controller";
 const app: Application = express();
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
     origin: config.isProduction
-      ? process.env.CORS_ORIGIN?.split(",") ?? true
+      ? process.env.CORS_ORIGIN?.split(",").map((o) => o.trim()) ?? true
       : true,
     credentials: true,
   })
 );
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ─── Health check ─────────────────────────────────────────────────────────────
