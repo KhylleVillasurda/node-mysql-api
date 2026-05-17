@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+pnpm-debug.log*
+*.log
+.git
+.gitignore
+README.md
+DOCUMENTATION.md
+GEMINI.md

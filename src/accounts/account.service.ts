@@ -3,10 +3,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { Request } from "express";
-import config from "../../config.json";
+import { config } from "../_helpers/config";
 import { db } from "../_helpers/db";
 import { Role } from "../_helpers/role";
-import sendEmail from "../_helpers/send-email";
+import { sendEmail } from "../_helpers/send-email";
 
 // ─── Exported Service ────────────────────────────────────────────────────────
 
@@ -94,7 +94,6 @@ async function authenticate({
     throw "Email not verified";
   }
 
-  // Authentication successful - generate tokens
   const jwtToken = generateJwtToken(account);
   const refreshToken = await generateRefreshToken(account, ipAddress);
 
@@ -114,7 +113,6 @@ async function refreshToken({
 }): Promise<AuthResponse> {
   const refreshToken = await getRefreshToken(token);
 
-  // Replace old refresh token with a new one (refresh token rotation)
   const account = await db.Account.findByPk(refreshToken.accountId);
   if (!account) throw "Invalid token";
 
@@ -124,7 +122,6 @@ async function refreshToken({
   refreshToken.replacedByToken = newRefreshToken.token;
   await refreshToken.save();
 
-  // Generate new jwt
   const jwtToken = generateJwtToken(account);
 
   return {
@@ -142,20 +139,16 @@ async function revokeToken({
   ipAddress: string;
 }): Promise<void> {
   const refreshToken = await getRefreshToken(token);
-
-  // Revoke token and save
   refreshToken.revoked = new Date();
   refreshToken.revokedByIp = ipAddress;
   await refreshToken.save();
 }
 
 async function register(params: RegisterParams, req: Request): Promise<void> {
-  // Validate
   if (params.password !== params.confirmPassword) {
     throw "Password and confirm password do not match";
   }
 
-  // Check if email is already registered
   const existingAccount = await db.Account.findOne({
     where: { email: params.email },
   });
@@ -164,14 +157,10 @@ async function register(params: RegisterParams, req: Request): Promise<void> {
     throw `Email '${params.email}' is already registered`;
   }
 
-  // Determine role: first account is Admin, rest are User
   const accountCount = await db.Account.count();
   const role = accountCount === 0 ? Role.Admin : Role.User;
-
-  // Hash password
   const passwordHash = await bcrypt.hash(params.password, 10);
 
-  // Create account
   const account = await db.Account.create({
     ...params,
     passwordHash,
@@ -179,7 +168,6 @@ async function register(params: RegisterParams, req: Request): Promise<void> {
     verificationToken: randomTokenString(),
   });
 
-  // Send verification email
   await sendVerificationEmail(account, req.get("origin"));
 }
 
@@ -198,15 +186,13 @@ async function verifyEmail({ token }: { token: string }): Promise<void> {
 async function forgotPassword({ email }: { email: string }, req: Request): Promise<void> {
   const account = await db.Account.findOne({ where: { email } });
 
-  // Always return ok response whether email exists or not
+  // Always return ok — don't reveal if email exists
   if (!account) return;
 
-  // Create reset token that expires after 24 hours
   account.resetToken = randomTokenString();
   account.resetTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
   await account.save();
 
-  // Send email
   await sendPasswordResetEmail(account, req.get("origin"));
 }
 
@@ -243,7 +229,6 @@ async function resetPassword({
 
   if (!account) throw "Invalid token";
 
-  // Update password and clear reset token
   account.passwordHash = await bcrypt.hash(password, 10);
   account.passwordReset = new Date();
   account.resetToken = null;
@@ -262,7 +247,6 @@ async function getById(id: number): Promise<any> {
 }
 
 async function create(params: CreateParams): Promise<any> {
-  // Validate
   if (params.password !== params.confirmPassword) {
     throw "Password and confirm password do not match";
   }
@@ -281,7 +265,7 @@ async function create(params: CreateParams): Promise<any> {
     ...params,
     passwordHash,
     acceptTerms: true,
-    verified: new Date(), // Auto-verify accounts created by admin
+    verified: new Date(), // Admin-created accounts are auto-verified
   });
 
   return basicDetails(account);
@@ -290,7 +274,6 @@ async function create(params: CreateParams): Promise<any> {
 async function update(id: number, params: UpdateParams): Promise<any> {
   const account = await getAccount(id);
 
-  // Validate
   if (
     params.email &&
     params.email !== account.email &&
@@ -306,7 +289,6 @@ async function update(id: number, params: UpdateParams): Promise<any> {
     params = { ...params, password: await bcrypt.hash(params.password, 10) };
   }
 
-  // Copy params to account and save
   Object.assign(account, params);
   account.updated = new Date();
   await account.save();
@@ -338,7 +320,6 @@ async function getRefreshToken(token: string): Promise<any> {
 }
 
 function generateJwtToken(account: any): string {
-  // Create a JWT token containing the account id, role, and email
   return jwt.sign(
     { id: account.id, role: account.role, email: account.email },
     config.jwtSecret,
@@ -347,7 +328,6 @@ function generateJwtToken(account: any): string {
 }
 
 async function generateRefreshToken(account: any, ipAddress: string): Promise<any> {
-  // Create a refresh token that expires in 7 days
   return await db.RefreshToken.create({
     accountId: account.id,
     token: randomTokenString(),
@@ -363,17 +343,7 @@ function randomTokenString(): string {
 
 function basicDetails(account: any): any {
   if (!account) return null;
-  const {
-    id,
-    email,
-    title,
-    firstName,
-    lastName,
-    role,
-    created,
-    updated,
-    isVerified,
-  } = account;
+  const { id, email, title, firstName, lastName, role, created, updated, isVerified } = account;
   return { id, email, title, firstName, lastName, role, created, updated, isVerified };
 }
 
@@ -382,19 +352,27 @@ async function sendVerificationEmail(account: any, origin: string | undefined): 
 
   if (origin) {
     const verifyUrl = `${origin}/accounts/verify-email?token=${account.verificationToken}`;
-    message = `<p>Please click the below link to verify your email address:</p>
-               <p><a href="${verifyUrl}">${verifyUrl}</a></p>`;
+    message = `<p>Please click the link below to verify your email address:</p>
+               <p><a href="${verifyUrl}" style="background:#4F46E5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Verify Email</a></p>
+               <p>Or copy this link: <code>${verifyUrl}</code></p>`;
   } else {
-    message = `<p>Please use the below token to verify your email address with the <code>/accounts/verify-email</code> api route:</p>
+    message = `<p>Please use the token below to verify your email with the <code>/accounts/verify-email</code> route:</p>
                <p><code>${account.verificationToken}</code></p>`;
   }
 
   await sendEmail({
     to: account.email,
-    subject: "Sign-up Verification API - Verify Email",
-    html: `<h4>Verify Email</h4>
-           <p>Thanks for registering!</p>
-           ${message}`,
+    subject: "Verify your email address",
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Welcome, ${account.firstName}!</h2>
+        <p>Thanks for registering. Please verify your email address to activate your account.</p>
+        ${message}
+        <p style="color:#888;font-size:12px;margin-top:32px">
+          If you didn't create this account, you can ignore this email.
+        </p>
+      </div>
+    `,
   });
 }
 
@@ -403,17 +381,26 @@ async function sendPasswordResetEmail(account: any, origin: string | undefined):
 
   if (origin) {
     const resetUrl = `${origin}/accounts/reset-password?token=${account.resetToken}`;
-    message = `<p>Please click the below link to reset your password, the link will be valid for 1 day:</p>
-               <p><a href="${resetUrl}">${resetUrl}</a></p>`;
+    message = `<p>Please click the link below to reset your password. The link expires in 24 hours:</p>
+               <p><a href="${resetUrl}" style="background:#4F46E5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Reset Password</a></p>
+               <p>Or copy this link: <code>${resetUrl}</code></p>`;
   } else {
-    message = `<p>Please use the below token to reset your password with the <code>/accounts/reset-password</code> api route:</p>
+    message = `<p>Please use the token below to reset your password with the <code>/accounts/reset-password</code> route:</p>
                <p><code>${account.resetToken}</code></p>`;
   }
 
   await sendEmail({
     to: account.email,
-    subject: "Sign-up Verification API - Reset Password",
-    html: `<h4>Reset Password Email</h4>
-           ${message}`,
+    subject: "Reset your password",
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Password Reset Request</h2>
+        <p>We received a request to reset the password for your account.</p>
+        ${message}
+        <p style="color:#888;font-size:12px;margin-top:32px">
+          If you didn't request this, you can safely ignore this email.
+        </p>
+      </div>
+    `,
   });
 }
