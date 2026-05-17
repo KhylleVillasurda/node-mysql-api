@@ -315,7 +315,7 @@ function setTokenCookie(res: Response, token: string): void {
     httpOnly: true,
     expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     sameSite: "lax" as const,
-    secure: false, // Set to true in production with HTTPS
+    secure: process.env.NODE_ENV === "production",
     path: "/",
   };
 

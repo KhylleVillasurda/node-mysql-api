@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import config from "../../config.json";
+import { config } from "../_helpers/config";
 import { db } from "../_helpers/db";
 import { Role } from "../_helpers/role";
 
@@ -31,7 +31,6 @@ export function authorize(roles: Role[] = []) {
           email: string;
         };
 
-        // Attach user data to request
         req.user = {
           id: decoded.id,
           role: decoded.role,
@@ -51,20 +50,17 @@ export function authorize(roles: Role[] = []) {
         return;
       }
 
-      // Check if account still exists
       const account = await db.Account.findByPk(req.user.id);
       if (!account) {
         res.status(401).json({ message: "Unauthorized -- account no longer exists" });
         return;
       }
 
-      // Check role authorization
       if (roles.length && !roles.includes(req.user.role as Role)) {
-        res.status(403).json({ message: "Unauthorized" });
+        res.status(403).json({ message: "Forbidden" });
         return;
       }
 
-      // Attach ownsToken helper
       req.user.ownsToken = async (token: string): Promise<boolean> => {
         const refreshToken = await db.RefreshToken.findOne({
           where: { token, accountId: req.user!.id },
