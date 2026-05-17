@@ -23,41 +23,50 @@ interface SendEmailOptions {
   html: string;
 }
 
-// ─── Gmail sender ─────────────────────────────────────────────────────────────
-
-async function sendViaGmail({ to, subject, html }: SendEmailOptions): Promise<void> {
+async function sendViaGmail({
+  to,
+  subject,
+  html,
+}: SendEmailOptions): Promise<void> {
   const { user, appPassword } = config.email.gmail;
 
   if (!user || !appPassword) {
     throw new Error(
-      "Gmail credentials missing. Set GMAIL_USER and GMAIL_APP_PASSWORD in your .env file."
+      "Gmail credentials missing. Set GMAIL_USER and GMAIL_APP_PASSWORD in your .env file.",
     );
   }
 
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true, // TLS on port 465 — more reliable than STARTTLS 587
     auth: {
       user,
       pass: appPassword,
     },
+    connectionTimeout: 10_000, // fail fast instead of hanging forever
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
   });
 
   await transporter.sendMail({
-    from: `"${config.email.from}" <${user}>`,
+    from: `"No Reply" <${user}>`,
     to,
     subject,
     html,
   });
 }
 
-// ─── Resend sender ────────────────────────────────────────────────────────────
-
-async function sendViaResend({ to, subject, html }: SendEmailOptions): Promise<void> {
+async function sendViaResend({
+  to,
+  subject,
+  html,
+}: SendEmailOptions): Promise<void> {
   const { apiKey } = config.email.resend;
 
   if (!apiKey) {
     throw new Error(
-      "Resend API key missing. Set RESEND_API_KEY in your .env file."
+      "Resend API key missing. Set RESEND_API_KEY in your .env file.",
     );
   }
 
@@ -70,21 +79,15 @@ async function sendViaResend({ to, subject, html }: SendEmailOptions): Promise<v
     html,
   });
 
-  if (error) {
-    throw new Error(`Resend error: ${error.message}`);
-  }
+  if (error) throw new Error(`Resend error: ${error.message}`);
 }
-
-// ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function sendEmail(options: SendEmailOptions): Promise<void> {
   const provider = config.email.provider;
 
-  if (config.env !== "production") {
-    console.log(
-      `[email] ${provider} → ${options.to} | Subject: "${options.subject}"`
-    );
-  }
+  console.log(
+    `[email] ${provider} → ${options.to} | Subject: "${options.subject}"`,
+  );
 
   switch (provider) {
     case "gmail":

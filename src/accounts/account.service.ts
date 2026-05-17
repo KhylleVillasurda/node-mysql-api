@@ -84,7 +84,9 @@ async function authenticate({
   password,
   ipAddress,
 }: AuthenticateParams): Promise<AuthResponse> {
-  const account = await db.Account.scope("withHash").findOne({ where: { email } });
+  const account = await db.Account.scope("withHash").findOne({
+    where: { email },
+  });
 
   if (!account || !(await bcrypt.compare(password, account.passwordHash))) {
     throw "Email or password is incorrect";
@@ -168,7 +170,12 @@ async function register(params: RegisterParams, req: Request): Promise<void> {
     verificationToken: randomTokenString(),
   });
 
-  await sendVerificationEmail(account, req.get("origin"));
+  try {
+    const origin = req.get("origin") || "http://localhost:4200";
+    await sendVerificationEmail(account, origin);
+  } catch (err) {
+    console.error("Failed to send verification email:", err);
+  }
 }
 
 async function verifyEmail({ token }: { token: string }): Promise<void> {
@@ -183,7 +190,10 @@ async function verifyEmail({ token }: { token: string }): Promise<void> {
   await account.save();
 }
 
-async function forgotPassword({ email }: { email: string }, req: Request): Promise<void> {
+async function forgotPassword(
+  { email }: { email: string },
+  req: Request,
+): Promise<void> {
   const account = await db.Account.findOne({ where: { email } });
 
   // Always return ok — don't reveal if email exists
@@ -323,11 +333,14 @@ function generateJwtToken(account: any): string {
   return jwt.sign(
     { id: account.id, role: account.role, email: account.email },
     config.jwtSecret,
-    { expiresIn: "15m" }
+    { expiresIn: "15m" },
   );
 }
 
-async function generateRefreshToken(account: any, ipAddress: string): Promise<any> {
+async function generateRefreshToken(
+  account: any,
+  ipAddress: string,
+): Promise<any> {
   return await db.RefreshToken.create({
     accountId: account.id,
     token: randomTokenString(),
@@ -343,15 +356,38 @@ function randomTokenString(): string {
 
 function basicDetails(account: any): any {
   if (!account) return null;
-  const { id, email, title, firstName, lastName, role, created, updated, isVerified } = account;
-  return { id, email, title, firstName, lastName, role, created, updated, isVerified };
+  const {
+    id,
+    email,
+    title,
+    firstName,
+    lastName,
+    role,
+    created,
+    updated,
+    isVerified,
+  } = account;
+  return {
+    id,
+    email,
+    title,
+    firstName,
+    lastName,
+    role,
+    created,
+    updated,
+    isVerified,
+  };
 }
 
-async function sendVerificationEmail(account: any, origin: string | undefined): Promise<void> {
+async function sendVerificationEmail(
+  account: any,
+  origin: string | undefined,
+): Promise<void> {
   let message: string;
 
   if (origin) {
-    const verifyUrl = `${origin}/accounts/verify-email?token=${account.verificationToken}`;
+    const verifyUrl = `${origin}/account/verify-email?token=${account.verificationToken}`;
     message = `<p>Please click the link below to verify your email address:</p>
                <p><a href="${verifyUrl}" style="background:#4F46E5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block;">Verify Email</a></p>
                <p>Or copy this link: <code>${verifyUrl}</code></p>`;
@@ -376,7 +412,10 @@ async function sendVerificationEmail(account: any, origin: string | undefined): 
   });
 }
 
-async function sendPasswordResetEmail(account: any, origin: string | undefined): Promise<void> {
+async function sendPasswordResetEmail(
+  account: any,
+  origin: string | undefined,
+): Promise<void> {
   let message: string;
 
   if (origin) {
