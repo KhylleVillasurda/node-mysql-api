@@ -23,34 +23,55 @@ interface SendEmailOptions {
   html: string;
 }
 
+// FIX: Create these once at module load, not on every sendEmail() call.
+// The original code built a new transporter / Resend instance per email,
+// which meant re-establishing a connection every time. By reusing a single
+// instance, the TCP handshake (Gmail) and object overhead (Resend) only
+// happen once per server process.
+let _resend: Resend | null = null;
+let _gmailTransport: nodemailer.Transporter | null = null;
+
+function getResend(): Resend {
+  if (!_resend) {
+    if (!config.email.resend.apiKey) {
+      throw new Error(
+        "Resend API key missing. Set RESEND_API_KEY in your .env file.",
+      );
+    }
+    _resend = new Resend(config.email.resend.apiKey);
+  }
+  return _resend;
+}
+
+function getGmailTransport(): nodemailer.Transporter {
+  if (!_gmailTransport) {
+    const { user, appPassword } = config.email.gmail;
+    if (!user || !appPassword) {
+      throw new Error(
+        "Gmail credentials missing. Set GMAIL_USER and GMAIL_APP_PASSWORD in your .env file.",
+      );
+    }
+    _gmailTransport = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: { user, pass: appPassword },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
+    });
+  }
+  return _gmailTransport;
+}
+
 async function sendViaGmail({
   to,
   subject,
   html,
 }: SendEmailOptions): Promise<void> {
-  const { user, appPassword } = config.email.gmail;
-
-  if (!user || !appPassword) {
-    throw new Error(
-      "Gmail credentials missing. Set GMAIL_USER and GMAIL_APP_PASSWORD in your .env file.",
-    );
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false, // Use STARTTLS on port 587
-    auth: {
-      user,
-      pass: appPassword,
-    },
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 15_000,
-  });
-
+  const transporter = getGmailTransport();
   await transporter.sendMail({
-    from: `"No Reply" <${user}>`,
+    from: `"No Reply" <${config.email.gmail.user}>`,
     to,
     subject,
     html,
@@ -62,33 +83,21 @@ async function sendViaResend({
   subject,
   html,
 }: SendEmailOptions): Promise<void> {
-  const { apiKey } = config.email.resend;
-
-  if (!apiKey) {
-    throw new Error(
-      "Resend API key missing. Set RESEND_API_KEY in your .env file.",
-    );
-  }
-
-  const resend = new Resend(apiKey);
-
+  const resend = getResend();
   const { error } = await resend.emails.send({
     from: config.email.from,
     to,
     subject,
     html,
   });
-
   if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<void> {
   const provider = config.email.provider;
-
   console.log(
     `[email] ${provider} → ${options.to} | Subject: "${options.subject}"`,
   );
-
   switch (provider) {
     case "gmail":
       return sendViaGmail(options);

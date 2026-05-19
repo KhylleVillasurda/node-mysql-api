@@ -20,19 +20,18 @@ export interface AccountAttributes {
   isVerified: boolean;
 }
 
-export interface AccountCreationAttributes
-  extends Optional<
-    AccountAttributes,
-    | "id"
-    | "verificationToken"
-    | "verified"
-    | "resetToken"
-    | "resetTokenExpires"
-    | "passwordReset"
-    | "created"
-    | "updated"
-    | "isVerified"
-  > {}
+export interface AccountCreationAttributes extends Optional<
+  AccountAttributes,
+  | "id"
+  | "verificationToken"
+  | "verified"
+  | "resetToken"
+  | "resetTokenExpires"
+  | "passwordReset"
+  | "created"
+  | "updated"
+  | "isVerified"
+> {}
 
 export class Account
   extends Model<AccountAttributes, AccountCreationAttributes>
@@ -54,7 +53,6 @@ export class Account
   public created!: Date | null;
   public updated!: Date | null;
 
-  // Virtual fields
   public get isVerified(): boolean {
     return !!this.verified;
   }
@@ -63,64 +61,41 @@ export class Account
 export default function (sequelize: Sequelize): typeof Account {
   Account.init(
     {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
       email: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
-        validate: {
-          isEmail: true,
-        },
+        unique: true, // already indexed — login lookups are fast
+        validate: { isEmail: true },
       },
-      passwordHash: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      title: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      firstName: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      lastName: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      acceptTerms: {
-        type: DataTypes.BOOLEAN,
-        allowNull: false,
-      },
+      passwordHash: { type: DataTypes.STRING, allowNull: false },
+      title: { type: DataTypes.STRING, allowNull: false },
+      firstName: { type: DataTypes.STRING, allowNull: false },
+      lastName: { type: DataTypes.STRING, allowNull: false },
+      acceptTerms: { type: DataTypes.BOOLEAN, allowNull: false },
       role: {
         type: DataTypes.STRING,
         allowNull: false,
         defaultValue: Role.User,
       },
+
+      // FIX: Added unique:true so MySQL creates an index on these columns.
+      // Without this, validateResetToken / verifyEmail do a full table scan
+      // on every call — even with 10 rows this adds measurable latency on Railway.
       verificationToken: {
-        type: DataTypes.STRING,
+        type: DataTypes.STRING(255),
         allowNull: true,
-      },
-      verified: {
-        type: DataTypes.DATE,
-        allowNull: true,
+        unique: true,
       },
       resetToken: {
-        type: DataTypes.STRING,
+        type: DataTypes.STRING(255),
         allowNull: true,
+        unique: true,
       },
-      resetTokenExpires: {
-        type: DataTypes.DATE,
-        allowNull: true,
-      },
-      passwordReset: {
-        type: DataTypes.DATE,
-        allowNull: true,
-      },
+
+      verified: { type: DataTypes.DATE, allowNull: true },
+      resetTokenExpires: { type: DataTypes.DATE, allowNull: true },
+      passwordReset: { type: DataTypes.DATE, allowNull: true },
       created: {
         type: DataTypes.DATE,
         allowNull: true,
@@ -131,6 +106,7 @@ export default function (sequelize: Sequelize): typeof Account {
         allowNull: true,
         defaultValue: DataTypes.NOW,
       },
+
       isVerified: {
         type: DataTypes.VIRTUAL,
         get() {
@@ -144,16 +120,10 @@ export default function (sequelize: Sequelize): typeof Account {
     {
       sequelize,
       tableName: "accounts",
-      defaultScope: {
-        attributes: { exclude: ["passwordHash"] },
-      },
-      scopes: {
-        withHash: {
-          attributes: { include: ["passwordHash"] },
-        },
-      },
+      defaultScope: { attributes: { exclude: ["passwordHash"] } },
+      scopes: { withHash: { attributes: { include: ["passwordHash"] } } },
       timestamps: false,
-    }
+    },
   );
 
   return Account;
